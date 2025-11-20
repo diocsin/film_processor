@@ -1,22 +1,29 @@
 # Multi-stage build для movie-processing-service
 FROM eclipse-temurin:23-jdk-alpine AS build
 
+# Устанавливаем Gradle
+RUN apk add --no-cache unzip && \
+    wget -q https://services.gradle.org/distributions/gradle-9.1.0-bin.zip && \
+    unzip gradle-9.1.0-bin.zip && \
+    mv gradle-9.1.0 /opt/gradle && \
+    rm gradle-9.1.0-bin.zip
+
+ENV PATH="/opt/gradle/bin:${PATH}"
+
 WORKDIR /app
 
 # 1. Копируем только то, что нужно для разрешения зависимостей
-COPY gradle ./gradle
-COPY gradlew gradlew
 COPY settings.gradle settings.gradle
 COPY build.gradle build.gradle
 
 # 2. Скачиваем зависимости (это самый долгий шаг, его хочется закешировать)
-RUN chmod +x gradlew && ./gradlew --no-daemon --info dependencies || true
+RUN gradle --no-daemon dependencies || true
 
 # 3. Теперь копируем исходный код
 COPY src ./src
 
 # Собираем приложение используя gradle из образа
-RUN ./gradlew --no-daemon bootJar
+RUN gradle --no-daemon bootJar
 
 # Финальный образ
 FROM eclipse-temurin:23-jre
